@@ -42,7 +42,8 @@ This project predicts sleep quality scores using time-series features extracted 
 
 3. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+    python -m pip install -U pip
+    python -m pip install -e .
    ```
 
    The main dependencies include:
@@ -91,7 +92,7 @@ Sleep-Quality-MLP-Regressor/
 
 ## Running the System
 
-### Quick Start
+### Global MAE
 
 Run the complete federated learning pipeline:
 
@@ -104,6 +105,7 @@ This will:
 2. Launch federated learning clients (one per group, excluding holdout set)
 3. Run multiple training rounds with model aggregation
 4. Generate MAE summaries in `train_logs/`
+5. Calculate mean MAE across all 9 clients
 
 ### Individual Components
 
@@ -112,7 +114,7 @@ This will:
 Preprocess and prepare data for all client groups:
 
 ```bash
-python3 src/preprocessing/preprocess_global.py
+python3 -m preprocessing.preprocess_global
 ```
 
 **Output**: Cleaned and feature-engineered datasets in `src/mlp/preprocessing/clients_dataset/`
@@ -120,7 +122,7 @@ python3 src/preprocessing/preprocess_global.py
 #### Start Federated Server
 
 ```bash
-python3 src/mlp/server/server_flwr.py
+python3 -m mlp.server.server_flwr
 ```
 
 #### Launch Federated Clients
@@ -129,10 +131,10 @@ In separate terminals (after starting the server):
 
 ```bash
 # Launch all clients automatically
-python3 src/mlp/client/run_all.py
+python3 -m mlp.client.run_all
 
 # Or launch a single client manually
-python3 src/mlp/client/client_app.py <client_id> <path_to_csv>
+python3 -m mlp.client.client_app <client_id> <path_to_csv>
 ```
 
 ### Configuration
@@ -197,41 +199,11 @@ Coordinates the complete pipeline:
 - Collects results and generates MAE summaries
 - Handles process cleanup and logging
 
-## Data Format
 
-### Input Data
-
-Each client dataset should be a CSV file with:
-- **Features**: Numerical columns representing sleep tracking metrics
-- **Label Column**: `"label"` containing the sleep quality score
-
-Example structure:
-```csv
-feature1,feature2,feature3,...,label,day
-10.5,20.3,15.2,...,7.5,1
-11.2,19.8,14.9,...,8.0,1
-...
-```
-
-### Output
-
-The system generates:
-- `train_logs/mae_summary_mlp.csv`: MAE metrics per training round
-- `train_logs/mae_summary_mlp.txt`: Human-readable summary
-- `src/mlp/logs/client_*.log`: Individual client training logs
-- `src/mlp/client/results/`: Client-side evaluation results
-
-## Performance
-
-The model tracks Mean Absolute Error (MAE) on:
-- **Local Test Sets**: Per-client validation
-- **Global Test Set**: Holdout client evaluation (`x_test.csv`)
-- **Aggregated Metrics**: Server-side metrics across rounds
-
-## License
-
-This project is maintained by AlessandroTinaoui.
 
 ## Contact
+Alice Olivares: alice.olivares@mail.polimi.it
 
-For questions or issues, please open an issue on the GitHub repository.
+Giovanni Scirocco: giovanninunzio.scirocco@mail.polimi.it
+
+Alessandro Tinaoui: alessandro.tinaoui@mail.polimi.it

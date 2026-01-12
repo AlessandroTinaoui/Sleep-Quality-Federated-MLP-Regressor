@@ -159,14 +159,12 @@ class NNClient(NumPyClient):
             feat_names = self.feature_names_local
             n, s, ssq = local_sums_for_scaler(self.X_train_df.fillna(0.0), feat_names)
 
-            # ✅ stats y (solo somme, niente dati grezzi)
+
             ytr64 = self.y_train.astype(np.float64)
             y_n = int(ytr64.shape[0])
             y_sum = float(np.sum(ytr64))
             y_sumsq = float(np.sum(ytr64 * ytr64))
 
-            # ✅ NEW: somma prodotto X*y per feature (serve al server per top-k via correlazione)
-            # Nota: usiamo lo stesso ordine feat_names del client
             Xtr64 = self.X_train_df.fillna(0.0)[feat_names].to_numpy(dtype=np.float64)
             sum_xy = np.sum(Xtr64 * ytr64.reshape(-1, 1), axis=0)
 
@@ -179,7 +177,6 @@ class NNClient(NumPyClient):
                 "y_n": y_n,
                 "y_sum": y_sum,
                 "y_sumsq": y_sumsq,
-                # x*y per top-k
                 "sum_xy": json.dumps(sum_xy.tolist()),
             }
             self.logger.info("Phase=scaler: sent X n/sum/sumsq + Y n/sum/sumsq + SUM_XY")
