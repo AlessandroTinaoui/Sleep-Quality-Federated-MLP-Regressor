@@ -1,7 +1,7 @@
 # Sleep Quality MLP Regressor
 
 A federated learning system for sleep quality prediction using Multi-Layer Perceptron (MLP) neural networks. This project implements a distributed machine learning approach where multiple clients train local models that are aggregated on a central server using Flower (Flwr), a federated learning framework.
-
+This model was first created and tested along other models in the [Experiment Repostory](https://github.com/AlessandroTinaoui/CSI-prog4-esperimenti)
 ## Overview
 
 This project predicts sleep quality scores using time-series features extracted from sleep-tracking data. It leverages federated learning to train models across multiple data silos (user groups) while maintaining data privacy. The system includes:
