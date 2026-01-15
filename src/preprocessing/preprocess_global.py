@@ -1,16 +1,13 @@
-# preprocess_global.py
 from __future__ import annotations
 
-import os
-import glob
 import json
-from dataclasses import dataclass,field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from preprocessing.extract_ts_features import extract_ts_features, TSFeatureConfig, infer_ts_columns
+from preprocessing.extract_ts_features import extract_ts_features, TSFeatureConfig
 
 
 
@@ -22,8 +19,7 @@ class CleanConfigGlobal:
     label_col: str = "label"
     day_col: Optional[str] = "day"
 
-    # train vs infer
-    mode: str = "train"  # "train" | "infer"
+    mode: str = "train"
     drop_label_zero: bool = True
     min_non_null_frac: float = 0.40
 
@@ -59,9 +55,7 @@ class GlobalStats:
         return GlobalStats(medians=obj["medians"], q1=obj["q1"], q3=obj["q3"])
 
 
-# -----------------------------
-# Selettori feature: coerenti col tuo codice attuale
-# -----------------------------
+
 def _select_numeric_feature_cols(df: pd.DataFrame, cfg: CleanConfigGlobal) -> List[str]:
     exclude = {cfg.label_col, "client_id", "user_id", "source_file"}
     if cfg.day_col:
@@ -86,7 +80,7 @@ def _coerce_numeric_features(df: pd.DataFrame, cfg: CleanConfigGlobal) -> pd.Dat
 
 
 # -----------------------------
-# Pulizia righe (come la tua)
+# Pulizia righe
 # -----------------------------
 def drop_invalid_labels(df: pd.DataFrame, cfg: CleanConfigGlobal) -> pd.DataFrame:
     if cfg.label_col not in df.columns:
@@ -119,10 +113,7 @@ def impute_missing_values_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: G
     return out
 
 
-# -----------------------------
-# GLOBAL IQR outlier handling
-# (stessa logica del tuo: crea __is_outlier e __clean, poi finalize sovrascrive)
-# -----------------------------
+
 def handle_outliers_iqr_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalStats) -> pd.DataFrame:
     out = df.copy()
     feat = _select_numeric_original_cols_for_low_info(out, cfg)
@@ -156,9 +147,6 @@ def handle_outliers_iqr_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: Glo
 
 
 def fill_remaining_nans_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalStats) -> pd.DataFrame:
-    """
-    Safety: riempi NaN residui sulle numeriche con mediana globale (fallback 0).
-    """
     out = df.copy()
     exclude = {cfg.label_col, "client_id", "user_id", "source_file"}
     if cfg.day_col:
@@ -194,7 +182,6 @@ def finalize_clean_columns(df: pd.DataFrame, cfg: CleanConfigGlobal) -> pd.DataF
     out = df.copy()
     orig_cols = _select_numeric_original_cols_for_low_info(out, cfg)
 
-    # sovrascrivi le colonne originali con la versione pulita (come facevi prima)
     for c in orig_cols:
         clean_c = f"{c}__clean"
         if clean_c in out.columns:
@@ -208,7 +195,7 @@ def finalize_clean_columns(df: pd.DataFrame, cfg: CleanConfigGlobal) -> pd.DataF
 
 
 # -----------------------------
-# GLOBAL STATS: calcolo (centralizzato/offline)
+# GLOBAL STATS:
 # -----------------------------
 def compute_global_stats_from_csvs(
     csv_paths: List[str],
@@ -216,7 +203,6 @@ def compute_global_stats_from_csvs(
 ) -> GlobalStats:
     """
     Calcola mediana globale + Q1/Q3 globali per colonna, leggendo i csv (puoi passare tutti i file dei 9 client).
-    Nota: calcolo esatto (centralizzato) -> semplice e stabile con i tuoi volumi.
     """
     frames: List[pd.DataFrame] = []
     for p in csv_paths:
@@ -225,8 +211,6 @@ def compute_global_stats_from_csvs(
 
     all_df = pd.concat(frames, ignore_index=True)
 
-    # (opzionale) TS features prima di stats, così le stats includono anche ts__* (se vuoi)
-    # Nel tuo selettore "original cols" esclude ts__, quindi qui calcoliamo stats solo sulle original.
     if cfg.day_col and cfg.day_col in all_df.columns:
         all_df[cfg.day_col] = pd.to_numeric(all_df[cfg.day_col], errors="coerce")
 
@@ -239,7 +223,6 @@ def compute_global_stats_from_csvs(
     q1 = all_df[feat].quantile(0.25, numeric_only=True).fillna(np.nan).to_dict()
     q3 = all_df[feat].quantile(0.75, numeric_only=True).fillna(np.nan).to_dict()
 
-    # cast a float semplice
     med = {k: float(v) for k, v in med.items()}
     q1 = {k: float(v) if np.isfinite(v) else float("nan") for k, v in q1.items()}
     q3 = {k: float(v) if np.isfinite(v) else float("nan") for k, v in q3.items()}
@@ -248,13 +231,13 @@ def compute_global_stats_from_csvs(
 
 
 # -----------------------------
-# Pipeline singolo user/day DF (come la tua, ma con GLOBAL stats + TS aug)
+# Pipeline singolo user/day DF
 # -----------------------------
 def clean_user_df_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalStats) -> pd.DataFrame:
     out = df.copy()
     n_rows_start = len(out)
 
-    # 2) TS features (come tuo flusso)
+    # 2) TS features
     if cfg.use_ts_features:
         ts_cfg = TSFeatureConfig(
             ts_cols=None,
@@ -271,7 +254,7 @@ def clean_user_df_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalSta
         out[cfg.day_col] = pd.to_numeric(out[cfg.day_col], errors="coerce")
     out = _coerce_numeric_features(out, cfg)
 
-    # 4) drop righe solo in train (come prima)
+    # 4) drop righe solo in train
     if cfg.mode == "train":
         out = drop_invalid_labels(out, cfg)
         out = drop_low_info_days(out, cfg)
@@ -285,7 +268,7 @@ def clean_user_df_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalSta
     # 7) safety fill NaN residui con mediana globale
     out = fill_remaining_nans_global(out, cfg, gs)
 
-    # 8) drop colonne (incluse quelle esplicite identiche)
+    # 8) drop colonne
     out = finalize_clean_columns(out, cfg)
 
     if cfg.debug:
@@ -296,7 +279,7 @@ def clean_user_df_global(df: pd.DataFrame, cfg: CleanConfigGlobal, gs: GlobalSta
 
 
 # -----------------------------
-# Helper: build clients come prima (ma serve passare global stats)
+# Helper: build clients come prima
 # -----------------------------
 def read_user_csv(path: str) -> pd.DataFrame:
     return pd.read_csv(path, sep=";").drop(columns=["Unnamed: 0"], errors="ignore")
@@ -349,18 +332,16 @@ def build_x_test_with_global_stats(
     """
     df = pd.read_csv(x_test_path, sep=";").drop(columns=["Unnamed: 0"], errors="ignore")
 
-    # Coerenza con il vecchio script
     df["client_id"] = "test"
     df["user_id"] = "test"
     df["source_file"] = os.path.basename(x_test_path)
 
-    # Config inferenza: niente drop per label==0 ecc.
     cfg_test = CleanConfigGlobal(**{**cfg_train.__dict__, "mode": "infer", "debug": cfg_train.debug})
 
     clean = clean_user_df_global(df, cfg_test, gs)
     clean.to_csv(out_path, index=False)
 
-    print(f"✔ SALVATO X_TEST: {clean.shape[0]} righe | {clean.shape[1]} colonne -> {out_path}")
+    print(f"SALVATO X_TEST: {clean.shape[0]} righe | {clean.shape[1]} colonne -> {out_path}")
 
 
 
@@ -370,10 +351,8 @@ if __name__ == "__main__":
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     print(SCRIPT_DIR)
-    # Raw dataset (come prima)
     TRAIN_BASE_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "../../data"))
 
-    # >>> OUTPUT coerenti con get_train_path/get_test_path (DATASET="new")
     OUT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "clients_dataset"))
     X_TEST_OUT = os.path.abspath(os.path.join(SCRIPT_DIR, "clients_dataset/x_test_clean.csv"))
 
@@ -385,19 +364,14 @@ if __name__ == "__main__":
     gs = compute_global_stats_from_csvs(all_csvs, cfg)
     print("GlobalStats calcolate:", len(gs.medians), "colonne")
 
-    # 2) costruzione dataset client con preprocessing GLOBAL
     build_clients_with_global_stats(TRAIN_BASE_DIR, OUT_DIR, cfg, gs)
 
-    # 3) salva stats
     with open(os.path.join(OUT_DIR, "global_stats.json"), "w", encoding="utf-8") as f:
         f.write(gs.to_json())
 
-    # --- X_TEST (come nel vecchio script) ---
     X_TEST_PATH = os.path.abspath(os.path.join(TRAIN_BASE_DIR, "x_test.csv"))
-    # Se invece x_test.csv sta fuori da TRAIN_BASE_DIR, allora usa:
-    # X_TEST_PATH = os.path.abspath(os.path.join(TRAIN_BASE_DIR, "..", "x_test.csv"))
 
     if os.path.exists(X_TEST_PATH):
         build_x_test_with_global_stats(X_TEST_PATH, X_TEST_OUT, cfg, gs)
     else:
-        print(f"⚠️ x_test.csv non trovato in: {X_TEST_PATH}")
+        print(f"x_test.csv non trovato in: {X_TEST_PATH}")

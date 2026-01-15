@@ -1,5 +1,3 @@
-# mlp/client/client_app.py
-
 import os
 import sys
 import json
@@ -58,7 +56,6 @@ def train_one_client(
 ):
     model.train()
     opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    # Huber loss: robusta e spesso migliore per MAE
     loss_fn = nn.SmoothL1Loss(beta=2.0)
 
     for _ in range(epochs):
@@ -83,7 +80,6 @@ def eval_one_client_real_mae(
     y_mean: float,
     y_std: float,
 ) -> float:
-    """Valuta MAE in scala reale (0..100) anche se il modello predice y normalizzata."""
     model.eval()
     with torch.no_grad():
         xb = torch.tensor(X, dtype=torch.float32, device=device)
@@ -189,7 +185,6 @@ class NNClient(NumPyClient):
         mean = np.array(json.loads(config["scaler_mean"]), dtype=np.float32)
         std = np.array(json.loads(config["scaler_std"]), dtype=np.float32)
 
-        # ✅ y global mean/std (federati)
         y_mean = float(config.get("y_mean", 0.0))
         y_std = float(config.get("y_std", 1.0))
         if y_std <= 1e-12:
@@ -198,7 +193,6 @@ class NNClient(NumPyClient):
         self.global_features = list(gf)
         self.scaler = ScalerStats(mean=mean, std=std)
 
-        # Allinea + standardizza X
         Xtr = ensure_feature_order_and_fill(self.X_train_df.copy(), self.global_features)
         Xte = ensure_feature_order_and_fill(self.X_test_df.copy(), self.global_features)
         Xtr = apply_standardization(Xtr, self.scaler)
@@ -211,7 +205,6 @@ class NNClient(NumPyClient):
         if parameters and len(parameters) > 0:
             set_model_params(self.model, parameters)
 
-        # ✅ y normalizzata per la loss
         ytr_norm = (self.y_train - y_mean) / y_std
 
         ds = TensorDataset(
@@ -229,7 +222,6 @@ class NNClient(NumPyClient):
             device=self.device,
         )
 
-        # Monitor MAE in scala reale (de-normalizza pred)
         mae_train = eval_one_client_real_mae(
             self.model,
             Xtr,
@@ -251,7 +243,6 @@ class NNClient(NumPyClient):
         if parameters and len(parameters) > 0:
             set_model_params(self.model, parameters)
 
-        # y global mean/std (federati)
         y_mean = float(config.get("y_mean", 0.0))
         y_std = float(config.get("y_std", 1.0))
         if y_std <= 1e-12:

@@ -1,9 +1,4 @@
-# mlp/server/config.py
 from __future__ import annotations
-
-import json
-import os
-from pathlib import Path
 
 # --- networking / fl ---
 SERVER_ADDRESS = "127.0.0.1:8080"

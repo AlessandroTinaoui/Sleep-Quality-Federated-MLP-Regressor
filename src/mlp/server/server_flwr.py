@@ -75,7 +75,6 @@ def _set_torch_params(model: torch.nn.Module, params):
 
 
 def _predict_real(model: torch.nn.Module, X: np.ndarray, y_mean: float, y_std: float) -> np.ndarray:
-    """Il modello predice y_norm -> qui riportiamo in scala reale."""
     model.eval()
     with torch.no_grad():
         xb = torch.tensor(X, dtype=torch.float32)
@@ -107,7 +106,7 @@ def main():
         print(f"Errore durante il training FL: {e}")
         sys.exit(1)
 
-    print("\n✅ FL terminato. Inizio fase di test...")
+    print("\nFL terminato. Inizio fase di test...")
 
     try:
         global_features, mean, std, params, y_mean, y_std = _load_global_artifacts()
@@ -115,13 +114,12 @@ def main():
         print(f"ERRORE artifacts globali: {e}")
         sys.exit(1)
 
-    # ricostruisci modello
     input_dim = len(global_features)
     model = MLPRegressor(input_dim=input_dim, hidden_sizes=[64, 32, 16], dropout=0.0)
     _set_torch_params(model, params)
 
     # -------------------------
-    # 1) HOLDOUT MAE (scala reale)
+    # 1) HOLDOUT MAE
     # -------------------------
     if HOLDOUT_CID <= 8:
         holdout_path = BASE_DIR / "../" / TRAIN_PATH / f"group{HOLDOUT_CID}_merged_clean.csv"
@@ -129,7 +127,7 @@ def main():
             holdout = pd.read_csv(holdout_path, sep=",")
 
             if "label" not in holdout.columns:
-                print(f"⚠️ Holdout senza label: {holdout_path}")
+                print(f"Holdout senza label: {holdout_path}")
             else:
                 y_holdout = holdout["label"].astype(float).to_numpy()
 
@@ -144,14 +142,14 @@ def main():
                 print(f"MEA valutato sul client {HOLDOUT_CID}")
                 print(f"FINAL_MAE: {mae_holdout}")
         else:
-            print(f"⚠️ Holdout non trovato: {holdout_path}")
+            print(f"Holdout non trovato: {holdout_path}")
 
     # -------------------------
-    # 2) PREDICT x_test_clean.csv (scala reale) + save Kaggle
+    # 2) PREDICT x_test_clean.csv
     # -------------------------
     test_path = BASE_DIR / "../" / TEST_PATH
     if not test_path.exists():
-        print(f"⚠️ File x_test_clean.csv non trovato in {test_path}")
+        print(f"File x_test_clean.csv non trovato in {test_path}")
         return
 
     x_test = pd.read_csv(test_path)
@@ -169,7 +167,7 @@ def main():
     y_pred = np.asarray(y_pred, dtype=np.float32)
     out = pd.DataFrame({"id": ids, "label": y_pred})
     out.to_csv(PROJECT_ROOT / "results" / "predictions.csv", index=False)
-    print("✅ Creato predictions.csv")
+    print("Creato predictions.csv")
 
 
 if __name__ == "__main__":

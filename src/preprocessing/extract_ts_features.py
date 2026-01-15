@@ -30,19 +30,14 @@ class TSFeatureConfig:
     # Prefisso per le nuove feature
     prefix: str = "ts"
 
-    # Quantili da calcolare
     quantiles: Tuple[float, ...] = (0.1, 0.25, 0.5, 0.75, 0.9)
 
-    # ✅ Rimuove valori negativi prima di calcolare le feature (train + test)
     drop_negative_values: bool = True
 
-    # ✅ aggiunge feature di qualità sulla TS raw (prima della pulizia)
     add_quality_features: bool = True
 
-    # ✅ se la TS contiene troppi negativi (sulla raw), NON si usa (used=0 e feature NaN)
-    max_neg_frac_raw: float = 0.50  # es. 0.50 = più del 50% negativi => ignora
+    max_neg_frac_raw: float = 0.50
 
-    # ✅ dopo aver tolto negativi+NaN, se restano pochi punti => ignora
     min_valid_points: int = 5
 
 _NUMS_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
@@ -79,7 +74,6 @@ def _parse_ts_cell(x: Any) -> Optional[np.ndarray]:
     if not s or s.lower() in {"nan", "none", "null"}:
         return None
 
-    # JSON / literal python
     if (s.startswith("[") and s.endswith("]")) or (s.startswith("{") and s.endswith("}")):
         try:
             obj = json.loads(s)
@@ -102,7 +96,6 @@ def _parse_ts_cell(x: Any) -> Optional[np.ndarray]:
         except Exception:
             pass
 
-    # fallback: estrai numeri dalla stringa
     s_norm = s
     if "." not in s_norm:
         s_norm = re.sub(r"(\d),(\d)", r"\1.\2", s_norm)
@@ -138,17 +131,14 @@ def _extract_features_from_series(y: np.ndarray, cfg: TSFeatureConfig) -> Dict[s
 
     feats: Dict[str, float] = {}
 
-    # --- Quality feats sempre disponibili (utile per debug/modello) ---
     if cfg.add_quality_features:
         feats["len_raw"] = float(y.size)
         feats["nan_frac_raw"] = float(np.mean(np.isnan(y))) if y.size else np.nan
         feats["neg_frac_raw"] = float(np.mean(y < 0)) if y.size else np.nan
         feats["neg_count_raw"] = float(np.sum(y < 0)) if y.size else np.nan
 
-    # flag: 1 usata, 0 ignorata
     feats["used"] = 1.0
 
-    # --- inizializza tutte le feature a NaN (schema stabile train/test) ---
     base_keys = ["len", "mean", "std", "min", "max", "range", "median", "mad", "energy"]
     for k in base_keys:
         feats[k] = np.nan
@@ -158,18 +148,15 @@ def _extract_features_from_series(y: np.ndarray, cfg: TSFeatureConfig) -> Dict[s
     for k in dyn_keys:
         feats[k] = np.nan
 
-    # --- regola: se troppi negativi nella raw => ignora TS ---
     if y.size > 0:
         neg_frac = float(np.mean(y < 0))
         if neg_frac > cfg.max_neg_frac_raw:
             feats["used"] = 0.0
             return feats
 
-    # --- pulizia: negativi -> NaN (sempre) e rimozione NaN ---
     y = sanitize_ts_array(y, drop_negative=cfg.drop_negative_values)
     y = y[~np.isnan(y)]
 
-    # se dopo pulizia ci sono pochi punti, ignora
     if y.size < cfg.min_valid_points:
         feats["used"] = 0.0
         return feats
@@ -222,7 +209,7 @@ def extract_ts_features(df: pd.DataFrame, cfg: TSFeatureConfig) -> pd.DataFrame:
     """
     Estrae feature tabellari dalle colonne TS e opzionalmente rimuove le colonne TS originali.
     - Per ogni colonna TS crea nuove colonne: f"{prefix}__{col}__<feat>"
-    - ✅ Prima di calcolare le feature, elimina i valori negativi (se cfg.drop_negative_values=True)
+    - Prima di calcolare le feature, elimina i valori negativi (se cfg.drop_negative_values=True)
     """
     out = df.copy()
 
