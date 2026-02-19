@@ -24,7 +24,7 @@ This project predicts sleep quality scores using time-series features extracted 
 ### Prerequisites
 
 - Python 3.10 or higher
-- pip (Python package manager)
+- pip (Python package manager) 
 
 ### Setup Instructions
 
