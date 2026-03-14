@@ -44,7 +44,7 @@ This project predicts sleep quality scores using time-series features extracted 
    ```bash
     python -m pip install -U pip
     python -m pip install -e .
-   ```
+   ``` 
 
    The main dependencies include:
    - `flwr`: Federated learning framework
